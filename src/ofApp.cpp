@@ -116,16 +116,33 @@ void ofApp::draw(){
     ofDisableDepthTest(); // 투명 픽셀이 깊이버퍼값을 가져서 뒤에 있던 태양메쉬가 가려지지 않도록, 태양메쉬와 구름메쉬를 그리기 전 깊이테스트 비활성화
     ofEnableBlendMode(ofBlendMode::OF_BLENDMODE_ALPHA); // 새로운 프래그먼트의 알파값을 이용해서 백 버퍼의 프래그먼트와 색상값을 섞어주는 알파 블렌딩 모드 활성화
     
+    // 변환행렬로 회전 애니메이션을 구현하기 위해 매 프레임마다 회전행렬 생성에 필요한 각도값을 갱신함.
+    static float rotation = 1.0f; // 매 프레임마다 갱신할 회전행렬의 각도값
+    rotation += 1.0f * ofGetLastFrameTime(); // 이전 프레임과 현재 프레임의 시간 간격인 '델타타임'만큼 매 프레임마다 각도값을 더해줌.
+    
     // 위에 glm 네임스페이스를 지정해줬기 때문에 mat4, vec3 등의 타입을 바로 사용할 수 있음.
-    mat4 transformA = buildMatrix(vec3(-0.55, 0.0, 0.0), 0.0f, vec3(1.5, 1, 1)); // 버텍스 셰이더로 직접 계산했던 첫 번째 구름메쉬의 변환행렬을 계산하여 리턴받음.
-    mat4 transformB = buildMatrix(vec3(0.4, 0.2, 0.0), 1.0f, vec3(1, 1, 1)); // 버텍스 셰이더로 직접 계산했던 두 번째 구름메쉬의 변환행렬을 계산하여 리턴받은
+    
+    // 변환행렬 A 는 회전행렬을 제외하고 연산하기 위해 buildMatrix() 를 거치지 않고 직접 만들어 줌.
+    mat4 translationA = translate(vec3(-0.55, 0.0, 0.0)); // 이동행렬
+    mat4 scaleA = scale(vec3(1.5, 1, 1)); // 크기행렬
+    mat4 transformA = translationA * scaleA; // 크기연산 -> 이동연산 순으로 처리하는 변환핸렬
+    
+    // 위 변환행렬 A 에 원하는 회전행렬을 적용함
+    // 이 때, 정반대 이동행렬인 translationA 의 역행렬을 곱해줘서 transformA 에서의 이동연산을 상쇄시킴.
+    // 크기연산 -> 회전연산 -> 이동연산 순으로 처리해주려면 중간에 낀 이동연산을 정반대 이동연산으로 상쇄시켜줘야 함!
+    mat4 ourRotation = rotate(rotation, vec3(0.0, 0.0, 1.0)); // 원하는 회전행렬 (매 프레임마다 갱신됨)
+    mat4 newMatrix = translationA * ourRotation * inverse(translationA); // 정반대 이동연산(glm 내장함수 inverse() 로 역행렬을 구함) -> 원하는 회전연산 -> 이동연산 순으로 처리하는 변환행렬
+    mat4 finalMatrixA = newMatrix * transformA; // 첫번째 구름메쉬에 최종적으로 적용할 변환행렬 (크기연산 -> (이동연산 -> 정반대 이동연산 (상쇄됨)) -> 원하는 회전연산 -> 이동연산) 순으로 처리됨.
+    
+    mat4 transformB = buildMatrix(vec3(0.4, 0.2, 0.0), 1.0f, vec3(1, 1, 1)); // 버텍스 셰이더로 직접 계산했던 두 번째 구름메쉬의 변환행렬을 계산하여 리턴받음.
+    
     
     // cloudShader 바인딩하여 사용 시작
     cloudShader.begin();
     
     cloudShader.setUniformTexture("tex", cloudImg, 0); // 구름 텍스쳐 이미지 유니폼 변수에 전송
     
-    cloudShader.setUniformMatrix4f("transform", transformA); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 첫번째 구름메쉬 변환행렬을 전송함.
+    cloudShader.setUniformMatrix4f("transform", finalMatrixA); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 첫번째 구름메쉬 변환행렬을 전송함.
     cloudMesh.draw(); // 구름메쉬 드로우콜 호출하여 그려줌
     
     cloudShader.setUniformMatrix4f("transform", transformB); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 두번째 구름메쉬 변환행렬을 전송함.

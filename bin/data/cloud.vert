@@ -10,7 +10,7 @@ out vec2 fragUV;
 
 void main() {
   // 버텍스 위치값 pos에 transform 을 곱해줌으로써 크기, 회전, 이동 연산을 한 줄로 끝내버림 
-  // -> 코드의 간결함 + 3차원 회전 계산 용이 + GPU 계산 최적화 의 장점을 모두 갖춤. (참고로 GPU는 행렬계산에 최적화 되어있음.)
+  // -> 코드의 간결함 + 3차원 회전 계산 용이 + GPU 계산 최적화 의 장점을 모두 갖춤. (참고로 GPU는 행렬 곱셈에 최적화 되어있음.)
   gl_Position = transform * vec4(pos, 1.0);
 
   fragUV = vec2(uv.x, 1.0 - uv.y);
