@@ -65,9 +65,10 @@ void ofApp::setup(){
     cloudImg.load("cloud.png"); // 구름메쉬에 사용할 텍스쳐 로드
     sunImg.load("sun.png"); // 태양메쉬에 사용할 텍스쳐 로드
     
+    // 모든 메쉬를 변환행렬로 처리하기 위해 passthrough.vert 를 cloud.vert 처럼 변환행렬로 곱해주는 로직으로 변경하고, 버텍스 셰이더를 통일함.
     spritesheetShader.load("spritesheet.vert", "alphaTest.frag"); // 스프라이트시트 기법을 사용할 캐릭터메쉬에 적용할 셰이더 파일 로드
     alphaTestShader.load("passthrough.vert", "alphaTest.frag"); // 알파테스트 셰이더를 사용할 메쉬들에 적용할 셰이더 파일 로드
-    cloudShader.load("cloud.vert", "cloud.frag"); // 구름메쉬에 적용할 셰이더 파일 로드
+    cloudShader.load("passthrough.vert", "cloud.frag"); // 구름메쉬에 적용할 셰이더 파일 로드
 }
 
 //--------------------------------------------------------------
@@ -96,7 +97,7 @@ void ofApp::draw(){
     spritesheetShader.setUniform2f("size", spriteSize); // 텍스쳐 사이즈 조절값 유니폼 변수에 전송
     spritesheetShader.setUniform2f("offset", spriteFrame); // 프레임 offset 값 유니폼 변수에 전송
     spritesheetShader.setUniformTexture("tex", alienImg, 0); // 스프라이트시트 텍스쳐 이미지 유니폼 변수에 전송
-    spritesheetShader.setUniform3f("translation", charPos); // 오른쪽 화살표 키 입력에 따라 캐릭터메쉬를 x축 오른쪽 방향으로 이동시킬 때 사용할 값 유니폰 변수에 전송
+    spritesheetShader.setUniformMatrix4f("transform", translate(charPos)); // 캐릭터메쉬의 이동도 변환행렬로 처리해야 하므로, 키 입력에 따라 갱신되는 vec3 charPos 벡터로 이동행렬을 만들어서 변환행렬 유니폼 변수에 전송해 줌.
     charMesh.draw(); // 캐릭터메쉬 드로우콜 호출하여 그려줌
     
     spritesheetShader.end();
@@ -107,6 +108,7 @@ void ofApp::draw(){
     alphaTestShader.begin();
     
     alphaTestShader.setUniformTexture("tex", backgroundImg, 0); // 배경 텍스쳐 이미지 유니폼 변수에 전송
+    alphaTestShader.setUniformMatrix4f("transform", glm::mat4()); // 배경메쉬도 변환행렬로 처리함. 배경메쉬는 아무런 변환이 필요 없으므로, glm::mat4() 호출을 통해 간단하게 '단위행렬'을 생성한 뒤 유니폼 변수에 전송함. 이처럼, 단위행렬은 별도의 변환이 필요없는 배경메쉬 등에 유용하게 사용됨.
     backgroundMesh.draw(); // 배경메쉬 드로우콜 호춣여 그려줌
     
     alphaTestShader.end();

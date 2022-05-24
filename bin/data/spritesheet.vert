@@ -5,12 +5,12 @@ layout(location = 3) in vec2 uv; // 오픈프레임웍스에서 각 버텍스 �
 
 uniform vec2 size; // 오픈프레임웍스에서 쏴준 전체적인 uv좌표값(즉, x 컴포넌트 0~1, y 컴포넌트 0~1 사이의 값)에 곱해줘서 전체 스프라이트시트 텍스쳐 중 하나의 프레임에 해당하는 부분만큼의 uv좌표값으로 변환하는데 사용할 값
 uniform vec2 offset; // 위에서 size 로 uv좌표값을 변환한 뒤, 몇번째, 어느 위치의 프레임으로 이동해서 그려줄 것인지 결정할 x방향 및 y방향의 offset값이 담긴 vec2 데이터 (마찬가지로 오픈프레임웍스에서 쏴줌.)
-uniform vec3 translation; // ofApp.cpp 의 update() 함수에서 계산된 charPos 값을 매 프레임마다 전달받아서 pos 값에 더해줌으로써, 오른쪽 화살표 키 입력때마다 캐릭터메쉬를 x축 오른쪽 방향으로 이동시킬거임.
+uniform mat4 transform; // 캐릭터메쉬 이동도 변환행렬로 처리하기 위해 변환행렬을 전송받는 유니폼 변수를 지정함.
 
 out vec2 fragUV;
 
 void main() {
-  gl_Position = vec4(pos + translation, 1.0);
+  gl_Position = transform * vec4(pos, 1.0); // 이동행렬이 담긴 유니폼변수 transform 을 곱해줌으로써 이동연산을 처리하도록 셰이더 구조를 변경함.
 
   /*
     아래와 같이,
