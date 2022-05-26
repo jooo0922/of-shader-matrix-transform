@@ -50,6 +50,22 @@ glm::mat4 buildMatrix(glm::vec3 trans, float rot, glm::vec3 scale) {
     return translation * rotation * scaler; // 최종적으로 곱셈하여 합친 변환행렬 리턴
 }
 
+// 카메라 위치, 회전값을 프로퍼티로 갖는 CameraDat 타입 변수 cam 을 인자로 받은 뒤, 뷰행렬을 생성해 리턴해주는 함수.
+glm::mat4 buildViewMatrix(CameraData cam) {
+    using namespace glm; // 이제부터 현재 블록 내에서 glm 라이브러리 키워드는 'glm::' 을 생략해서 사용해도 됨.
+    
+    /**
+     우선 상단의 모델행렬 계산에 사용되던 buildMatrix 함수를 가져와서 뷰행렬 계산에 사용함.
+     
+     '뷰행렬'은 카메라 움직임에 따라 좌표계의 나머지 대상들을 정확히 카메라 반대방향으로 움직이기 위한
+     변환행렬이므로, 대상들을 움직일 때 사용하는 변환행렬인 '모델행렬' 을 그대로 사용할 수는 없음.
+     
+     그래서 inverse() 오픈프레임웍스 내장함수로
+     리턴받은 모델행렬의 역행렬을 구해서 최종적인 뷰행렬을 리턴해주는 것.
+     */
+    return inverse(buildMatrix(cam.position, cam.rotation, vec3(1, 1, 1))); // 카메라 위치, 카메라 회전값, 카메라 크기(크기는 의미가 없으므로, (1, 1, 1)로 고정이랬지?)을 전달.
+}
+
 //--------------------------------------------------------------
 void ofApp::setup(){
     ofDisableArbTex(); // 스크린 픽셀 좌표를 사용하는 텍스쳐 관련 오픈프레임웍스 레거시 지원 설정 비활성화
@@ -83,6 +99,9 @@ void ofApp::update(){
 void ofApp::draw(){
     using namespace glm; // 하단에서 buildMatrix() 함수로 변환행렬 계산 후 리턴받는 코드 작성 시, 'glm::' 을 안붙이고도 mat4, vec3 등의 변수타입을 사용할 수 있도록 한 것.
     
+    cam.position = vec3(-1, 0, 0); // 매 프레임마다 카메라 위치 데이터를 (-1, 0, 0) 으로 할당함. (x축 방향으로 -1이면, NDC 좌표계의 x축이 -1 ~ 1 사이니까 정확히 x축 방향으로 왼쪽으로 전체 좌표계의 절반만큼 움직이도록 한 것. )
+    mat4 view = buildViewMatrix(cam); // 위치 데이터가 할당된 CameraData 타입의 변수를 인자로 넘겨서 뷰행렬을 리턴받음.
+    
     ofDisableBlendMode(); // 이전 프레임에서 사용한 블렌딩 모드를 비활성화함.
     ofEnableDepthTest(); // 구름메쉬의 투명픽셀에 의해 태양메쉬가 가리는 문제를 해결하고자 밑에서 비활성화했던 깊이테스트를 다시 활성화함. (캐릭터메쉬, 배경메쉬는 깊이를 구분해줘야 하니까)
     
@@ -97,7 +116,8 @@ void ofApp::draw(){
     spritesheetShader.setUniform2f("size", spriteSize); // 텍스쳐 사이즈 조절값 유니폼 변수에 전송
     spritesheetShader.setUniform2f("offset", spriteFrame); // 프레임 offset 값 유니폼 변수에 전송
     spritesheetShader.setUniformTexture("tex", alienImg, 0); // 스프라이트시트 텍스쳐 이미지 유니폼 변수에 전송
-    spritesheetShader.setUniformMatrix4f("transform", translate(charPos)); // 캐릭터메쉬의 이동도 변환행렬로 처리해야 하므로, 키 입력에 따라 갱신되는 vec3 charPos 벡터로 이동행렬을 만들어서 변환행렬 유니폼 변수에 전송해 줌.
+    spritesheetShader.setUniformMatrix4f("model", translate(charPos)); // 캐릭터메쉬의 이동도 변환행렬로 처리해야 하므로, 키 입력에 따라 갱신되는 vec3 charPos 벡터로 이동행렬을 만들어서 변환행렬(이제부터는 '모델행렬' 이라고 부를 것!) 유니폼 변수에 전송해 줌.
+    spritesheetShader.setUniformMatrix4f("view", view); // 카메라 움직임의 정반대 방향으로 캐릭터메쉬의 움직임을 조정하는 뷰행렬도 유니폼 변수에 전송해 줌.
     charMesh.draw(); // 캐릭터메쉬 드로우콜 호출하여 그려줌
     
     spritesheetShader.end();
@@ -108,7 +128,8 @@ void ofApp::draw(){
     alphaTestShader.begin();
     
     alphaTestShader.setUniformTexture("tex", backgroundImg, 0); // 배경 텍스쳐 이미지 유니폼 변수에 전송
-    alphaTestShader.setUniformMatrix4f("transform", glm::mat4()); // 배경메쉬도 변환행렬로 처리함. 배경메쉬는 아무런 변환이 필요 없으므로, glm::mat4() 호출을 통해 간단하게 '단위행렬'을 생성한 뒤 유니폼 변수에 전송함. 이처럼, 단위행렬은 별도의 변환이 필요없는 배경메쉬 등에 유용하게 사용됨.
+    alphaTestShader.setUniformMatrix4f("model", glm::mat4()); // 배경메쉬도 변환행렬 (이제부터는 '모델행렬') 로 처리함. 배경메쉬는 아무런 변환이 필요 없으므로, glm::mat4() 호출을 통해 간단하게 '단위행렬'을 생성한 뒤 유니폼 변수에 전송함. 이처럼, 단위행렬은 별도의 변환이 필요없는 배경메쉬 등에 유용하게 사용됨.
+    alphaTestShader.setUniformMatrix4f("view", view); // 카메라 움직임의 정반대 방향으로 배경메쉬의 움직임을 조정하는 뷰행렬도 유니폼 변수에 전송해 줌.
     backgroundMesh.draw(); // 배경메쉬 드로우콜 호춣여 그려줌
     
     alphaTestShader.end();
@@ -143,11 +164,12 @@ void ofApp::draw(){
     cloudShader.begin();
     
     cloudShader.setUniformTexture("tex", cloudImg, 0); // 구름 텍스쳐 이미지 유니폼 변수에 전송
+    cloudShader.setUniformMatrix4f("view", view); // 카메라 움직임의 정반대 방향으로 구름메쉬들의 움직임을 조정하는 뷰행렬도 유니폼 변수에 전송해 줌.
     
-    cloudShader.setUniformMatrix4f("transform", finalMatrixA); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 첫번째 구름메쉬 변환행렬을 전송함.
+    cloudShader.setUniformMatrix4f("model", finalMatrixA); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 첫번째 구름메쉬 변환행렬(이제부터는 '모델행렬')을 전송함.
     cloudMesh.draw(); // 구름메쉬 드로우콜 호출하여 그려줌
     
-    cloudShader.setUniformMatrix4f("transform", transformB); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 두번째 구름메쉬 변환행렬을 전송함.
+    cloudShader.setUniformMatrix4f("model", transformB); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 두번째 구름메쉬 변환행렬(이제부터는 '모델행렬')을 전송함.
     cloudMesh.draw(); // 구름메쉬 드로우콜 호출하여 그려줌 -> 하나의 메쉬를 가지고 여러 번 드로우콜을 호출하여 화면 상에 여러 개의 메쉬를 복사하여 그려줄 수 있음.
     
     cloudShader.end();

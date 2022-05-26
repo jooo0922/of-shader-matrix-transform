@@ -2,6 +2,12 @@
 
 #include "ofMain.h"
 
+// 카메라의 현재 위치, 회전값을 받는 구조체 타입 지정. (카메라 뷰 행렬 연산에서 크기값은 의미가 없으므로, 항상 (1, 1, 1) 로 가정함.)
+struct CameraData {
+    glm::vec3 position;
+    float rotation;
+};
+
 class ofApp : public ofBaseApp{
 
 	public:
@@ -42,4 +48,6 @@ class ofApp : public ofBaseApp{
     // 버텍스 셰이더를 이용해 캐릭터 메쉬를 움직이기 위해 필요한 멤버변수들
     bool walkRight;
     glm::vec3 charPos;
+    
+    CameraData cam; // 카메라 위치 및 회전의 현재 상태값을 나타내는 구조체를 타입으로 갖는 멤버변수 cam 을 선언함.
 };
