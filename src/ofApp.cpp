@@ -72,7 +72,8 @@ void ofApp::setup(){
     ofEnableDepthTest(); // 깊이테스트를 활성화하여 z좌표값을 깊이버퍼에 저장해서 z값을 기반으로 앞뒤를 구분하여 렌더링할 수 있도록 함.
     
     buildMesh(charMesh, 0.1, 0.2, glm::vec3(0.0, -0.2, 0.0)); // 캐릭터메쉬 생성
-    buildMesh(backgroundMesh, 1.0, 1.0, glm::vec3(0.0, 0.0, 0.5)); // 배경메쉬 생성
+    // buildMesh(backgroundMesh, 1.0, 1.0, glm::vec3(0.0, 0.0, 0.5)); // 배경메쉬 생성
+    buildMesh(backgroundMesh, 1.0, 1.0, glm::vec3(0.0, 0.0, -0.5)); // 아래 draw() 에서 직교투영행렬의 near, far값에 의해 프러스텀의 z축 범위가 0 ~ -10 으로 설정됨에 따라, 배경메쉬의 z값이 0.5가 되면 프러스텀을 벗어나서 화면에 렌더가 안됨. 그러므로, 배경메쉬 생성 시 버텍스의 z값을 -0.5 로 바꿔서 하던지, 아니면 초기에 0으로 설정을 해놓고 draw() 함수에서 translate(0.0, 0.0, -0.5) 이런식으로 z값만 -0.5만큼 이동시키는 이동변환행렬을 만들어서 배경메쉬가 사용하는 버텍스 셰이더에 쏴줘서 적용할 수 있도록 하던지 해야 함.
     buildMesh(cloudMesh, 0.25, 0.15, glm::vec3(0.0, 0.0, 0.0)); // 구름메쉬 생성
     buildMesh(sunMesh, 1.0, 1.0, glm::vec3(0.0, 0.0, 0.4)); // 태양메쉬 생성
     
@@ -100,7 +101,36 @@ void ofApp::draw(){
     using namespace glm; // 하단에서 buildMatrix() 함수로 변환행렬 계산 후 리턴받는 코드 작성 시, 'glm::' 을 안붙이고도 mat4, vec3 등의 변수타입을 사용할 수 있도록 한 것.
     
     cam.position = vec3(-1, 0, 0); // 매 프레임마다 카메라 위치 데이터를 (-1, 0, 0) 으로 할당함. (x축 방향으로 -1이면, NDC 좌표계의 x축이 -1 ~ 1 사이니까 정확히 x축 방향으로 왼쪽으로 전체 좌표계의 절반만큼 움직이도록 한 것. )
-    mat4 view = buildViewMatrix(cam); // 위치 데이터가 할당된 CameraData 타입의 변수를 인자로 넘겨서 뷰행렬을 리턴받음.
+    // mat4 view = buildViewMatrix(cam); // 위치 데이터가 할당된 CameraData 타입의 변수를 인자로 넘겨서 뷰행렬을 리턴받음.
+    mat4 view = mat4(); // 투영행렬 적용결과를 관찰하기 위해, 뷰행렬을 단위행렬로 바꿔줌으로써 카메라를 움직이지 않도록 함. (glm::mat4() 를 그냥 호출하면 단위행렬이 나온다고 했었지?)
+    
+    /**
+     glm 라이브러리의 ortho() 함수를 이용해서 직교투영에 사용할 투영행렬을 리턴받음.
+     
+     이 때, left, right 값인 첫 번째와 두 번째 인자의 값을 -1, 1이 아닌 -1.33, 1.33 으로 해줘야 함.
+     왜냐하면, 지금 직교투영을 하는 목적 자체가, 배경메쉬를 예로 들어 설명하자면
+     setuo 함수에서 배경메쉬 생성할 때 배경메쉬의 width, height 을 둘 다 1씩 줘서
+     정사각형 메쉬로 만들기로 했는데, 실제 화면에 렌더링되는건 직사각형이잖아?
+     
+     왜냐하면, 현재 NDC 좌표계를 기준으로 예제를 구현하고 있는데,
+     NDC 좌표계는 실행창의 왼쪽 끝과 오른쪽 끝을 각각 -1, 1 로 인식하고, 아래, 위도 각각 -1, 1 로 인식하기 때문에
+     실행창의 사이즈 따라서 배경메쉬도 똑같이 늘어날 수 밖에 없는거임. 아무리 정사각형으로 정의했다고 해도...
+     
+     그래서, 투영행렬을 곱해서 변환한 클립공간을 만들 때에는,
+     실행창의 가로/세로비, 즉 종횡비(aspect ratio) 만큼을 곱해줘서
+     가로방향을 늘리던지, 아니면 세로방향을 줄이던지 해야 함.
+     
+     그래서 가로방향을 늘리기 위해 투영행렬에서 left, right의 값에
+     main.cpp 에서 설정한 실행창 해상도인 1024/768 의 종횡비 1.33 을 곱해준 것임.
+     
+     또한, 근평면(near) 와 원평면(far) 값을 각각 0, 10 으로 설정했는데
+     얘는 프러스텀(클립공간)의 z축 상의 범위를 near 에서 시작해서 마이너스 방향으로 far까지 설정하는 것임.
+     
+     즉, 이 투영행렬에 의해 변환된 프러스텀, 즉 클립공간은
+     z축 상에서 0 에서 시작해서 -10에서 끝난다는 뜻이고,
+     이 범위를 벗어나는 메쉬들은 렌더링되지 않을 거라는 의미임.
+     */
+    mat4 proj = glm::ortho(-1.33f, 1.33f, -1.0f, 1.0f, 0.0f, 10.0f);
     
     ofDisableBlendMode(); // 이전 프레임에서 사용한 블렌딩 모드를 비활성화함.
     ofEnableDepthTest(); // 구름메쉬의 투명픽셀에 의해 태양메쉬가 가리는 문제를 해결하고자 밑에서 비활성화했던 깊이테스트를 다시 활성화함. (캐릭터메쉬, 배경메쉬는 깊이를 구분해줘야 하니까)
@@ -118,6 +148,7 @@ void ofApp::draw(){
     spritesheetShader.setUniformTexture("tex", alienImg, 0); // 스프라이트시트 텍스쳐 이미지 유니폼 변수에 전송
     spritesheetShader.setUniformMatrix4f("model", translate(charPos)); // 캐릭터메쉬의 이동도 변환행렬로 처리해야 하므로, 키 입력에 따라 갱신되는 vec3 charPos 벡터로 이동행렬을 만들어서 변환행렬(이제부터는 '모델행렬' 이라고 부를 것!) 유니폼 변수에 전송해 줌.
     spritesheetShader.setUniformMatrix4f("view", view); // 카메라 움직임의 정반대 방향으로 캐릭터메쉬의 움직임을 조정하는 뷰행렬도 유니폼 변수에 전송해 줌.
+    spritesheetShader.setUniformMatrix4f("proj", proj); // 뷰 좌표(공간)에 곱해줘서 클립공간으로 변환하기 위해 필요한 투영행렬도 유니폼 변수에 전송해 줌.
     charMesh.draw(); // 캐릭터메쉬 드로우콜 호출하여 그려줌
     
     spritesheetShader.end();
@@ -130,6 +161,7 @@ void ofApp::draw(){
     alphaTestShader.setUniformTexture("tex", backgroundImg, 0); // 배경 텍스쳐 이미지 유니폼 변수에 전송
     alphaTestShader.setUniformMatrix4f("model", glm::mat4()); // 배경메쉬도 변환행렬 (이제부터는 '모델행렬') 로 처리함. 배경메쉬는 아무런 변환이 필요 없으므로, glm::mat4() 호출을 통해 간단하게 '단위행렬'을 생성한 뒤 유니폼 변수에 전송함. 이처럼, 단위행렬은 별도의 변환이 필요없는 배경메쉬 등에 유용하게 사용됨.
     alphaTestShader.setUniformMatrix4f("view", view); // 카메라 움직임의 정반대 방향으로 배경메쉬의 움직임을 조정하는 뷰행렬도 유니폼 변수에 전송해 줌.
+    alphaTestShader.setUniformMatrix4f("proj", proj); // 뷰 좌표(공간)에 곱해줘서 클립공간으로 변환하기 위해 필요한 투영행렬도 유니폼 변수에 전송해 줌.
     backgroundMesh.draw(); // 배경메쉬 드로우콜 호춣여 그려줌
     
     alphaTestShader.end();
@@ -165,6 +197,7 @@ void ofApp::draw(){
     
     cloudShader.setUniformTexture("tex", cloudImg, 0); // 구름 텍스쳐 이미지 유니폼 변수에 전송
     cloudShader.setUniformMatrix4f("view", view); // 카메라 움직임의 정반대 방향으로 구름메쉬들의 움직임을 조정하는 뷰행렬도 유니폼 변수에 전송해 줌.
+    cloudShader.setUniformMatrix4f("proj", proj); // 뷰 좌표(공간)에 곱해줘서 클립공간으로 변환하기 위해 필요한 투영행렬도 유니폼 변수에 전송해 줌.
     
     cloudShader.setUniformMatrix4f("model", finalMatrixA); // 버텍스 셰이더에 mat4 변환행렬을 받는 유니폼변수에 첫번째 구름메쉬 변환행렬(이제부터는 '모델행렬')을 전송함.
     cloudMesh.draw(); // 구름메쉬 드로우콜 호출하여 그려줌
